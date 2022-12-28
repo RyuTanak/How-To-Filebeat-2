@@ -6,6 +6,7 @@
 ## 目次  
 [データ加工について](#content1)  
 [filebeatのprocessorを使ったデータ加工方法](#content2)  
+[ElasticsearchのIngest pipelineを使ったデータ加工方法](#content3)  
 
 <h2 id="content1">データ加工について</h2>  
 
@@ -46,7 +47,7 @@ https://www.elastic.co/guide/en/beats/filebeat/7.17/filtering-and-enhancing-data
 2022-11-03 192.168.1.3 199.20.11.43 ms0000003  
 ```
 
-filebeat.ymlに上記のprocessorを定義することでデータ加工を行うことができる。
+filebeat.ymlに上記のprocessorを定義することでデータ加工を行うことができる。  
 今回は「dissect」というprocessorを使用する。  
 filebeat.ymlを以下のように定義する。  
 
@@ -68,9 +69,53 @@ processors:
   - dissect:
       tokenizer: '%{date} %{srcip} %{dstip} %{module_id}'
       field: "message"
-      target_prefix: "result"
+      target_prefix: ""
 ```
 
 indexのデータを見ると、ログの各項目にField名がついて登録されていることが分かる。  
 ![discover1](./image/discover1.png)  
 
+このようにログを加工することができる。  
+どのprocessorを使うかは、入力されるログによって適切なモノを使うとよい。  
+
+<h2 id="content3">ElasticsearchのIngest pipelineを使ったデータ加工方法</h2>  
+
+先ほどはFilebeatの機能を用いて、ログの加工を行った。  
+次はElasticsearchの機能を使ってログを加工する。  
+
+ElasticsearchのIngest Pipelineを使用する。  
+kibanaの画面から「stack management」→「Ingest Pipelines」を選択する。  
+![pipeline1](./image/pipeline1.png)  
+
+「Create pipeline」を選択し、「Name」にtest-pipelineと入力  
+![pipeline2](./image/pipeline2.png)  
+ 
+「Add a processor」を選択し、「processor」の中からdissectを選択する。  
+![pipeline3](./image/pipeline3.png)  
+
+「field」欄にmessage、「Pattern」欄に %{date} %{srcip} %{dstip} %{module_id}を入力し、右下の「Add」を押す。  
+![pipeline4](./image/pipeline4.png)  
+
+最後に左下の「create pipeline」を押す。これでElasticsearch側の設定は完了。  
+
+次にFilebeatの設定で、filebeat.ymlを以下の設定にする。  
+```yaml
+filebeat.inputs:
+- type: log
+  enabled: true
+  paths:
+    - /var/log/test/*.log
+setup.template.name: "tokyo"
+setup.template.pattern: "tokyo-*"
+setup.ilm.enabled: false
+output.elasticsearch:
+  hosts: ["localhost:9200"]
+  username: "filebeat_writer"
+  password: "YOUR_PASSWORD"
+  index: "use-pipeline"
+processors:
+  - dissect:
+      tokenizer: '%{date} %{srcip} %{dstip} %{module_id}'
+      field: "message"
+      target_prefix: ""
+```
