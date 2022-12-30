@@ -113,9 +113,6 @@ output.elasticsearch:
   username: "filebeat_writer"
   password: "YOUR_PASSWORD"
   index: "use-pipeline"
-processors:
-  - dissect:
-      tokenizer: '%{date} %{srcip} %{dstip} %{module_id}'
-      field: "message"
-      target_prefix: ""
+  pipeline: "test-pipeline"
 ```
+
