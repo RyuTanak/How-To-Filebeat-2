@@ -116,3 +116,6 @@ output.elasticsearch:
   pipeline: "test-pipeline"
 ```
 
+indexのデータを見ると、ログの各項目にField名がついて登録されていることが分かる。  
+![pipeline5](./image/pipeline5.png)  
+
