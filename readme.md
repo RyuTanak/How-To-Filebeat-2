@@ -7,6 +7,7 @@
 [データ加工について](#content1)  
 [filebeatのprocessorを使ったデータ加工方法](#content2)  
 [ElasticsearchのIngest pipelineを使ったデータ加工方法](#content3)  
+[filebeat moduleを使ったデータ加工方法](#content4)  
 
 <h2 id="content1">データ加工について</h2>  
 
@@ -116,6 +117,90 @@ output.elasticsearch:
   pipeline: "test-pipeline"
 ```
 
+filebeatを起動し、ログを配置すると  
 indexのデータを見ると、ログの各項目にField名がついて登録されていることが分かる。  
 ![pipeline5](./image/pipeline5.png)  
+
+このようにpipelineは自作することができるため、用途に応じて  
+pipelineを生成することができる。  
+
+<h2 id="content4">filebeat moduleを使ったデータ加工方法</h2>  
+
+実際に機器のログを分解しようと、上記で紹介した方法で行う場合  
+様々なprocessorを使ってどう分解しないといけないかを考えなくてはいけないが  
+Filebeatには特定の機器のログに対してはすでにprocessorやpipelineを実装している。  
+以下のリファレンスにあるのは、Filebeatが対応済みの機器の一覧である。  
+https://www.elastic.co/guide/en/beats/filebeat/7.17/filebeat-modules.html  
+
+ここでは「activemq」というmoduleを対象に、実際に利用してみます。  
+
+/var/filebeat/modules.dフォルダ下のファイルを見ると  
+「activemq.yml.disable」というファイルがあるので、「activemq.yml」にファイル名を変更する  
+![module1](./image/module1.png)  
+
+/var/filebeat/modules.d/activemq.ymlを以下のように変更する。  
+```yaml
+# Module: activemq
+# Docs: https://www.elastic.co/guide/en/beats/filebeat/7.17/filebeat-module-activemq.html
+
+- module: activemq
+  # Audit logs
+  audit:
+    enabled: true
+
+    # Set custom paths for the log files. If left empty,
+    # Filebeat will choose the paths depending on your OS.
+    #var.paths:
+
+  # Application logs
+  log:
+    enabled: true
+
+    # Set custom paths for the log files. If left empty,
+    # Filebeat will choose the paths depending on your OS.
+    var.paths:                  #←コメントを外す
+      - /var/log/test/*.log     #←この1行を追加
+
+```
+
+filebeat.ymlを以下のように編集する。  
+```yaml
+filebeat.inputs:
+filebeat.config.modules:                #←追加
+  path: ${path.config}/modules.d/*.yml  #←追加
+setup.template.name: "tokyo"
+setup.template.pattern: "tokyo-*"
+setup.ilm.enabled: false
+#logging.level: debug
+#logging.to_files: true
+#logging.files:
+#  path: /var/log/filebeat
+#  name: test
+#  keepfiles: 7
+#  permissions: 0644
+output.elasticsearch:
+  hosts: ["localhost:9200"]
+  username: "filebeat_writer"
+  password: "YOUR_PASSWORD"
+  index: "use-activemq_index"
+```
+
+次のコマンドを実行する。  
+```
+sudo filebeat setup --pipelines
+```
+このコマンドを実行するとIngest Pipelinesに2つのpipelineが追加される。  
+![module2](./image/module2.png)  
+
+あとは、filebeatを起動してログを置くだけであるが  
+ログは以下のURLのログを使う。(activemqが出力するログが参考としてGithubに上がっている)  
+https://github.com/elastic/beats/blob/main/x-pack/filebeat/module/activemq/log/test/activemq.log  
+
+indexを見ると、ログが分解されたデータがindexに登録されている。  
+![module3](./image/module3.png)  
+
+※右上の「show data」の時間範囲を変更しないと、入力したデータが出てこないので注意。  
+
+
+
 
